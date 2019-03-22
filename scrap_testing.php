@@ -14,21 +14,25 @@ $ch = curl_init();
 ));*/
 
 
-/*
-$url = 'example.com';
-$postinfo = 'login=100000000';
 
-curl_setopt($ch, CURLOPT_NOBODY, false);
+$url = 'example';
+$postinfo = 'example';
+
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_HEADER, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $postinfo);
 curl_setopt($ch, CURLOPT_VERBOSE, 1);
-curl_setopt($ch, CURLOPT_COOKIE, "S: ///////////// REPLACE; __cfduid: ///////////// REPLACE");
+//curl_setopt($ch, CURLOPT_COOKIE, "S: example; __cfduid: example");
 
 
 $result = curl_exec($ch);
 
-////////////////////////////////////////////////////////////////////// namjestiti cookie ID???
+
+$host_ip = curl_getinfo($ch, CURLINFO_PRIMARY_IP);
+var_dump($host_ip);
+
 
 preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $result, $matches);
 $cookies = array();
@@ -37,30 +41,29 @@ foreach($matches[1] as $item) {
     $cookies = array_merge($cookies, $cookie);
 }
 var_dump($cookies);
+exit;
 
-*/
+
 $opts = array(
 	CURLOPT_URL 			=> $arg,
     CURLOPT_HEADER 			=> 0,
-    CURLOPT_VERBOSE 		=> 0,
-    //CURLOPT_POST			=> 0,
-    CURLOPT_RETURNTRANSFER 	=> 1,	// return page
+    CURLOPT_VERBOSE 		=> 1,
+    CURLOPT_RETURNTRANSFER 	=> 1,	// return page content
     CURLOPT_CONNECTTIMEOUT 	=> 10,	// connect timeout
     CURLOPT_TIMEOUT        	=> 30,	// response timeout
     CURLOPT_SSL_VERIFYPEER  => 1,
     CURLOPT_FOLLOWLOCATION	=> 1,
     CURLOPT_AUTOREFERER		=> 1,
-    CURLOPT_COOKIE   		=> "S: SESSID",		///////////// REPLACE
-    CURLOPT_COOKIE   		=> "__cfduid: SESSID",	///////////// REPLACE
+    //CURLOPT_COOKIE   		=> "S: example; __cfduid: example",
     CURLOPT_HTTPHEADER		=> array(
-    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0',
-    'Accept: */*',
-	'Connection: keep-alive',
-	'Upgrade-Insecure-Requests', '1',
-	"Accept-Encoding", "gzip, deflate, br",
-	"Accept-Language", "en-US,en;q=0.9",
+	    'User-Agent: Mozilla/5.0 Gecko/20100101 Firefox/65.0',
+	    'Accept: */*',
+		//'Connection: keep-alive',
+		//'Upgrade-Insecure-Requests', '1',
+		//"Accept-Encoding", "gzip, deflate, br",
+		//"Accept-Language", "en-US,en;q=0.9",
     ),
-    //CURLOPT_SSL_VERIFYPEER  => 1,
+    CURLOPT_SSL_VERIFYPEER  => 0,
     CURLOPT_MAXREDIRS 		=> 10
  );
 
