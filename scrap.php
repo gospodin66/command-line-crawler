@@ -27,9 +27,6 @@ if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php scrap.php <exam
 
 
 
-
-
-
 $domain = trim($argv[1]);	///////// FILTER!!!
 $scheme = trim($argv[2]);	///////// FILTER!!!
 
@@ -133,6 +130,7 @@ function extract_sess_cookies($page,$domain){
 	preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $page, $matches);
 	$s_cookies = array();		// all cookies
 	$log = "";
+	$domains = array();
 	foreach($matches[1] as $item) {
 
 		$time = date("H:i:s");
@@ -142,30 +140,61 @@ function extract_sess_cookies($page,$domain){
 	    $_s_cookies = array_slice($_s_cookies, 4);
 
 
-
-	    $_key___cfduid = ($domain == arrayname) key($_s_cookies);////////////////////////////////
-	    $_key_s = strpos($_s_cookies, $s_cookies['S']);//////////////////////////////////////////
-
+	    $cfduid_domain 	   = "";
+	    $s_domain 		   = "";
 
 
-	    if(!isset($s_cookies['__cfduid'])){
-			$s_cookies['__cfduid'] = trim(substr($_s_cookies[NEEEEED INDEX!!!], 10));
-
-			if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['__cfduid'], $matches)){
-				$key___cfduid = trim($matches[0][0]);
-			}
-
+	    for($i=0;$i<count($_s_cookies);$i++){
 			
+
+			//var_dump($_s_cookies[$i]);
+	    	
+
+	    	//	regex for extracting domain name from array
+	    	if(preg_match_all("/\.(\w+)(\.*?)(\-*?)(\w+?)\.(\w{2,5})\S/", $_s_cookies[$i], $matches)){
+	    		//$key = key($_s_cookies);
+	    		
+	    		$domains[$i] = !in_array($domains[$i], $matches[0][0]) ? substr_replace($matches[0][0], "", 0, 1) : NULL;
+			}
 	    }
 
-	    if(!isset($s_cookies['S'])){
-			$s_cookies['S'] = trim(substr($_s_cookies[1], 10));
-			
-			if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['S'], $matches)){
-				$key_s = trim($matches[0][0]);
-			}
-			if($)
-	    }
+
+	    TU SMO STALI!!!!!!!!!!!!!!!!
+
+
+		if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['__cfduid'], $_matches)){
+			$cfduid_domain = trim($_matches[0][0]);
+		}
+		
+		if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['S'], $_matches)){
+			$s_domain = trim($_matches[0][0]);
+		}
+
+
+
+		//$s_cookies['__cfduid'] = trim(substr($_s_cookies[$key], 10));	   	   /// NEED INDEX!!
+		//$s_cookies['S']        = trim(substr($_s_cookies[$key], 10)); 	   /// NEED INDEX!!
+
+
+
+		if(!isset($s_cookies['S'])){
+		}
+		if(!isset($s_cookies['__cfduid'])){
+		}	
+
+
+	   // var_dump($s_cookies);
+	    var_dump($domains);
+	   	/* for($i=0;$i<count($_s_cookies);$i++){
+
+	    	$_key___cfduid = preg_match("/\.(\w)\.(\w)/", $_s_cookies[$i]) ? $i : NULL;
+	    	$_key_s 	   = $_s_cookies[$i] == $domain ? $i : NULL;
+
+	    } */
+
+		/////////////////////		na kraju ako nema u polju domene, izlazi se van
+
+
 
 	    $log .= empty($s_cookies['S']) || empty($s_cookies['__cfduid'])  ? "" : "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
 	}
