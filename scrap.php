@@ -4,36 +4,31 @@ if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php scrap.php <exam
 
 //	1048576 bytes === 1 MB
 
-
-
-
-
+//////////////////////////////////////////////////////////////////////////////////////
 //		TODO: DODATI NAZIVE STRANICA KOJE SU NA REDU ZA SCRAP U LOG I CLI OUTPUT
 //			  U LOG TREBA I REZULTAT CJELOKUPNOG SCRAP-ANJA
 //			  FILTRIRATI REZULTATE ====> BRISATI DUPLIKATE
+//////////////////////////////////////////////////////////////////////////////////////
 
-
-
-
-$domain = trim($argv[1]);	///////// FILTER!!!
-$scheme = trim($argv[2]);	///////// FILTER!!!
+$domain = trim($argv[1]);	///////// FILTER
+$scheme = trim($argv[2]);	///////// FILTER
 
 if(file_exists($domain.".txt") && strlen(file_get_contents($domain.".txt")) > 200){
 	unlink($domain.".txt");
 	print "\33[93m".$domain.".txt cleared.\33[0m\n";
 } 
 
-define("D1", "\n\33[93m**********************************<link>**************************************\n\n\33[0m ");
-define("D2", "\n\33[93m**********************************<meta>**************************************\n\n\33[0m ");
-define("D3", "\n\33[93m************************************<a>***************************************\n\n\33[0m ");
-define("D4", "\n\33[93m***********************************<img>**************************************\n\n\33[0m ");
-define("D5", "\n\33[93m**********************************<script>************************************\n\n\33[0m ");
+define("D1", "\n\33[93m**********************************<link>**************************************\n\n\33[0m");
+define("D2", "\n\33[93m**********************************<meta>**************************************\n\n\33[0m");
+define("D3", "\n\33[93m************************************<a>***************************************\n\n\33[0m");
+define("D4", "\n\33[93m***********************************<img>**************************************\n\n\33[0m");
+define("D5", "\n\33[93m**********************************<script>************************************\n\n\33[0m");
 
 
 $ch = curl_init();
-$log = "\r\n********************************* main page ********************************\r\n";
+$log = "\r\n********************************* main ************************************\r\n";
 
-
+////**** 1	****////
 $opts = isset($argv[3]) && $argv[3] == 1 ? select_opts(1,$scheme,$domain) : select_opts(0,$scheme,$domain);
 curl_setopt_array($ch, $opts);
 $page = curl_exec($ch);
@@ -46,7 +41,6 @@ if(curl_errno($ch)){ 	// check for execution errors
 $curlinfo = curl_getinfo($ch);
 curl_close($ch);
 
-//$arg = curl_getinfo($ch,CURLINFO_EFFECTIVE_URL);
 
 $host_ip = $curlinfo['primary_ip'].":".$curlinfo['primary_port'];
 $speed = $curlinfo['speed_download']."/".$curlinfo['speed_upload'];
@@ -55,7 +49,7 @@ $log .= "[".date("H:i:s")."] > Host IP: ".$host_ip." | down/up speed: ".$speed."
 
 file_put_contents($domain.".txt", $log, FILE_APPEND);
 $log = "";
-$s_cookies = extract_sess_cookies($page,$domain);	// retrieve session cookies
+$s_cookies = extract_cookies($page,$domain);	// retrieve session cookies
 
 $doc = new DOMDocument();
 @$doc->loadHTML($page);
@@ -74,7 +68,6 @@ $json = str_replace(D3, "", $json);
 $json = str_replace(D4, "", $json);
 $json = str_replace(D5, "", $json);
 
-//file_put_contents($title.".json", $json);
 file_put_contents($domain.".json", $json, FILE_APPEND);
 print "\33[95mResult file >>> ".__DIR__."/".$domain.".json\33[0m\n";
 
@@ -106,15 +99,14 @@ print "\033[32m\nFinished.\n\033[0m";
 
 exit();
 
-/*********************************************************************************/
-/*********************************************************************************/
-/*********************************************************************************/
-/*********************************************************************************/
-/*********************************************************************************/
+
+/****************************************************************************************/
+/****************************************************************************************/
+/****************************************************************************************/
 
 
+function extract_cookies($page,$domain){		
 
-function extract_sess_cookies($page,$domain){
 	preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $page, $matches);
 	$s_cookies = array();		// all cookies
 	$log = "";
@@ -123,28 +115,31 @@ function extract_sess_cookies($page,$domain){
 		$time = date("H:i:s");
 	    parse_str($item, $cookie);
 	    $s_cookies = array_merge($s_cookies, $cookie);
-	    $_s_cookies = explode("#", file_get_contents('sess_cookie.txt'));
-	    $_s_cookies = array_slice($_s_cookies, 4);					//	avoiding offset notice
+	    $_s_cookies = explode("#", file_get_contents('SessionCookies.txt'));
+	    $_s_cookies = array_slice($_s_cookies, 4);
 
 
-	   for($i=0;$i<count($_s_cookies);$i++){
+	   for($i=0;$i<count($_s_cookies);$i++){	////**** 1	****////
 
 			if(!isset($s_cookies['__cfduid'])){
-				$s_cookies['__cfduid'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],56)) : "";	   
+				$s_cookies['__cfduid'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],56)) : "";
+				//	56 - start of '__cfduid' => cut the rest
 			}
 
-
 			if(!isset($s_cookies['S'])){
-				$s_cookies['S'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],36)) : "";	   
+				$s_cookies['S'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],36)) : "";
+				//	36 - start of 'S' => cut the rest   
 			}
 	   	}
 
-	   $log .= empty($s_cookies['S']) || empty($s_cookies['__cfduid'])  ? "" : "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
+	   $log .= "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
 	}
 
 	file_put_contents($domain.".txt", $log, FILE_APPEND);
 	return $s_cookies;
 }
+
+/****************************************************************************************/
 
 function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain name
 
@@ -152,7 +147,6 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 	$scraped = array();
 	$string = "[";
 	$url_regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?/";
-	$cookies[] = $s_cookies;		// all cookies
 
 	foreach ($links as $a) {	// loop through elements
 		foreach ($a->attributes as $link) {	// loop through attributes
@@ -161,14 +155,18 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 			$url = trim($link->nodeValue);
 			$time = date("H:i:s");
 
-			if($url == "#" || empty($url) || preg_match("/\/*[_logout\.php]+$/", $url))		//	prevent executing logout script
-				break;	// skip if page == _logout.php
 
+			if($url == "#" || empty($url) || preg_match("/\/*[_logout\.php]+$/", $url))		//	prevent executing logout script
+				break;	// skip if page == _logout.php 		////**** 1	****////
+
+
+			////////		TODO: LISTA FORMATA
 
 			if(preg_match("/(\.apk)|(\.ipa)|(\.mp3)|(\.mp4)|(\.jpg)|(\.png)$/", $url))		//	do not download content!!!
 			{
 				print "\33[94m[".$time."] > Content URL >>> ".$url." >>> skipping..\33[0m\n";
 				$log .= "[".$time."] > Content URL [".strlen($url)." bytes] >>> ".$url." >>> skipping..";
+
 				file_put_contents($_url.".txt", $log, FILE_APPEND);
 				break;
 			}
@@ -180,6 +178,10 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 			$scraped[] = $url;
 
 
+
+			/////////		TODO: BOLJA LOGIKA FILTRIRANJA I ADAPTIRANJA LINKOVA!!!!
+
+			////**** 1	****////
 			if(preg_match('/#.+/', $url) == 1 || $url != "href")	// '#' at index[0]
 			{
 				$log .= "[".$time."] > ".$url." >>> Invalid link format.. >>> Adapting.. \r\n";
@@ -203,9 +205,9 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 			$host_ip  = $curlinfo['primary_ip'].":".$curlinfo['primary_port'];
 			$speed    = $curlinfo['speed_download']."/".$curlinfo['speed_upload'];
 			$log     .= "[".$time."] > Host IP: ".$host_ip." | down/up speed: ".$speed."\n";
-			$log     .= "\r\n> Page size: [".strlen($page)."] bytes.\r\n\n";
+			$log     .= "\r\n> Page size: [".strlen($page)."] bytes.\r\n\n";		/// strlen == bytes?!?
 
-			if(curl_errno($ch)){ 							// check for execution errors
+			if(curl_errno($ch)){ 		// check for execution errors
 				print "Scraper error: ".curl_error($ch)."\n";
 				$log = "[".$time."] Scraper error: ".curl_error($ch)."\r\n";
 				curl_close($ch);
@@ -215,7 +217,7 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 
 			file_put_contents($_url.".txt", $log, FILE_APPEND);
 			$log = "";
-			$s_cookies = extract_sess_cookies($page,$_url);
+			$s_cookies = extract_cookies($page,$_url);
 
 			$doc = new DOMDocument();
 			@$doc->loadHTML($page);
@@ -234,7 +236,7 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 	}
 
 	print "\33[96mList of scraped pages:\n";
-	print_r($scraped);
+	print_r($scraped);				///	TODO: TABLICA ILI STRINGOVI PO REDNIM BROJEVIMA
 	print "\33[0m";
 
 	while(1)
@@ -267,6 +269,8 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 	}
 }
 
+/****************************************************************************************/
+
 function select_opts($flag,$scheme,$url){
 
 	if($flag == 0){
@@ -283,8 +287,8 @@ function select_opts($flag,$scheme,$url){
 		    CURLOPT_FOLLOWLOCATION	=> 1,
 		    CURLOPT_AUTOREFERER		=> 1,
 		    CURLOPT_MAXREDIRS 		=> 10,
-			CURLOPT_COOKIEJAR		=> 'sess_cookie.txt',
-			CURLOPT_COOKIEFILE		=> 'sess_cookie.txt',
+			CURLOPT_COOKIEJAR		=> 'SessionCookies.txt',
+			CURLOPT_COOKIEFILE		=> 'SessionCookies.txt',
 		    CURLOPT_HTTPHEADER		=> array(
 			    //'User-Agent: 1977417',
 			    'Accept: */*',
@@ -292,7 +296,7 @@ function select_opts($flag,$scheme,$url){
 		 );
 	}
 	else if($flag == 1){
-		$post_data = 'login=100000000';
+		$post_data = 'login=100000000';	////**** 1	****////
 		return array(
 			CURLOPT_URL 			=> preg_match('/^'.$scheme.'./', $url) ? $url."/php/_login.php" : $scheme."://".$url."/php/_login.php",
 		    CURLOPT_HEADER 			=> 1,
@@ -307,8 +311,8 @@ function select_opts($flag,$scheme,$url){
 		    CURLOPT_AUTOREFERER		=> 1,
 		    CURLOPT_MAXREDIRS 		=> 10,
 		    CURLOPT_POSTFIELDS		=> $post_data,
-			CURLOPT_COOKIEJAR		=> 'sess_cookie.txt',
-			CURLOPT_COOKIEFILE		=> 'sess_cookie.txt',
+			CURLOPT_COOKIEJAR		=> 'SessionCookies.txt',
+			CURLOPT_COOKIEFILE		=> 'SessionCookies.txt',
 		    CURLOPT_HTTPHEADER		=> array(
 			   //'User-Agent: 1977417',
 			    'Accept: */*',
@@ -321,6 +325,13 @@ function select_opts($flag,$scheme,$url){
 		 );
 	}
 }
+
+/****************************************************************************************/
+
+
+
+///////		TODO: BOLJA LOGIKA SCRAP-AJNJA
+
 
 function header_links($doc){
 
@@ -336,6 +347,8 @@ function header_links($doc){
 	}
 	return $fmtd;
 }
+
+/****************************************************************************************/
 
 function hrefs($doc){
 
@@ -354,6 +367,8 @@ function hrefs($doc){
 	return $fmtd;
 }
 
+/****************************************************************************************/
+
 function metas($doc){
 
 	$metas = $doc->getElementsByTagName('meta');
@@ -370,6 +385,8 @@ function metas($doc){
 	return $fmtd;
 }
 
+/****************************************************************************************/
+
 function imgs($doc){
 
 	$imgs = $doc->getElementsByTagName('img');
@@ -384,6 +401,8 @@ function imgs($doc){
 	}
 	return $fmtd;
 }
+
+/****************************************************************************************/
 
 function scripts($doc){
 
@@ -400,6 +419,8 @@ function scripts($doc){
 	return $fmtd;
 }
 
+/****************************************************************************************/
+
 function divs($doc){
 
 	$scripts = $doc->getElementsByTagName('div');
@@ -414,5 +435,8 @@ function divs($doc){
 	}
 	return $fmtd;
 }
+
+/****************************************************************************************/
+
 
 ?>
