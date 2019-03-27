@@ -8,21 +8,9 @@ if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php scrap.php <exam
 
 
 
-/*
-
-
- 	extract_sess_cookies($page,$url) 	>>> 	FIX!!!
-
- 	example lovitalk.fun 	>> 	content links 	>>>		FIX!!!
-
-
-
-
-
-
-*/
-
-
+//		TODO: DODATI NAZIVE STRANICA KOJE SU NA REDU ZA SCRAP U LOG I CLI OUTPUT
+//			  U LOG TREBA I REZULTAT CJELOKUPNOG SCRAP-ANJA
+//			  FILTRIRATI REZULTATE ====> BRISATI DUPLIKATE
 
 
 
@@ -50,7 +38,7 @@ $opts = isset($argv[3]) && $argv[3] == 1 ? select_opts(1,$scheme,$domain) : sele
 curl_setopt_array($ch, $opts);
 $page = curl_exec($ch);
 
-if(curl_errno($ch)){ 							// check for execution errors
+if(curl_errno($ch)){ 	// check for execution errors
 	$log .= "Scraper error: ".curl_error($ch)."\r\n";
 	die("Scraper error: ".curl_error($ch)."\n");
 }
@@ -130,82 +118,33 @@ function extract_sess_cookies($page,$domain){
 	preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $page, $matches);
 	$s_cookies = array();		// all cookies
 	$log = "";
-	$domains = array();
 	foreach($matches[1] as $item) {
 
 		$time = date("H:i:s");
 	    parse_str($item, $cookie);
 	    $s_cookies = array_merge($s_cookies, $cookie);
 	    $_s_cookies = explode("#", file_get_contents('sess_cookie.txt'));
-	    $_s_cookies = array_slice($_s_cookies, 4);
+	    $_s_cookies = array_slice($_s_cookies, 4);					//	avoiding offset notice
 
 
-	    $cfduid_domain 	   = "";
-	    $s_domain 		   = "";
+	   for($i=0;$i<count($_s_cookies);$i++){
 
-
-	    for($i=0;$i<count($_s_cookies);$i++){
-			
-
-			//var_dump($_s_cookies[$i]);
-	    	
-
-	    	//	regex for extracting domain name from array
-	    	if(preg_match_all("/\.(\w+)(\.*?)(\-*?)(\w+?)\.(\w{2,5})\S/", $_s_cookies[$i], $matches)){
-	    		//$key = key($_s_cookies);
-	    		
-	    		$domains[$i] = !in_array($domains[$i], $matches[0][0]) ? substr_replace($matches[0][0], "", 0, 1) : NULL;
+			if(!isset($s_cookies['__cfduid'])){
+				$s_cookies['__cfduid'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],56)) : "";	   
 			}
-	    }
 
 
-	    TU SMO STALI!!!!!!!!!!!!!!!!
+			if(!isset($s_cookies['S'])){
+				$s_cookies['S'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],36)) : "";	   
+			}
+	   	}
 
-
-		if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['__cfduid'], $_matches)){
-			$cfduid_domain = trim($_matches[0][0]);
-		}
-		
-		if(preg_match_all("/^(\w+)\.(\w{2,5})\s+/", $s_cookies['S'], $_matches)){
-			$s_domain = trim($_matches[0][0]);
-		}
-
-
-
-		//$s_cookies['__cfduid'] = trim(substr($_s_cookies[$key], 10));	   	   /// NEED INDEX!!
-		//$s_cookies['S']        = trim(substr($_s_cookies[$key], 10)); 	   /// NEED INDEX!!
-
-
-
-		if(!isset($s_cookies['S'])){
-		}
-		if(!isset($s_cookies['__cfduid'])){
-		}	
-
-
-	   // var_dump($s_cookies);
-	    var_dump($domains);
-	   	/* for($i=0;$i<count($_s_cookies);$i++){
-
-	    	$_key___cfduid = preg_match("/\.(\w)\.(\w)/", $_s_cookies[$i]) ? $i : NULL;
-	    	$_key_s 	   = $_s_cookies[$i] == $domain ? $i : NULL;
-
-	    } */
-
-		/////////////////////		na kraju ako nema u polju domene, izlazi se van
-
-
-
-	    $log .= empty($s_cookies['S']) || empty($s_cookies['__cfduid'])  ? "" : "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
+	   $log .= empty($s_cookies['S']) || empty($s_cookies['__cfduid'])  ? "" : "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
 	}
-	
+
 	file_put_contents($domain.".txt", $log, FILE_APPEND);
 	return $s_cookies;
 }
-
-
-
-
 
 function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain name
 
@@ -324,8 +263,8 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 		 	default:
 		 	print "\033[31m> Invalid argument.\33[0m\n";
 		 	break;
-	} 
-}
+		} 
+	}
 }
 
 function select_opts($flag,$scheme,$url){
