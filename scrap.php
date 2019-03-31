@@ -8,6 +8,14 @@ if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php scrap.php <exam
 //		TODO: DODATI NAZIVE STRANICA KOJE SU NA REDU ZA SCRAP U LOG I CLI OUTPUT
 //			  U LOG TREBA I REZULTAT CJELOKUPNOG SCRAP-ANJA
 //			  FILTRIRATI REZULTATE ====> BRISATI DUPLIKATE
+//
+//		<chmod>
+//		number 1  execute rights
+//		number 2  file writeable
+//		number 4  file readable 
+//
+//
+//
 //////////////////////////////////////////////////////////////////////////////////////
 
 $domain = trim($argv[1]);	///////// FILTER
@@ -49,7 +57,9 @@ $log .= "[".date("H:i:s")."] > Host IP: ".$host_ip." | down/up speed: ".$speed."
 
 file_put_contents($domain.".txt", $log, FILE_APPEND);
 $log = "";
-$s_cookies = extract_cookies($page,$domain);	// retrieve session cookies
+
+if(extract_cookies($page,$domain) === FALSE);	// retrieve session cookies
+	print "\33[31mNo cookies extracted.\33[0m\n\n";
 
 $doc = new DOMDocument();
 @$doc->loadHTML($page);
@@ -68,13 +78,10 @@ $json = str_replace(D3, "", $json);
 $json = str_replace(D4, "", $json);
 $json = str_replace(D5, "", $json);
 
-file_put_contents($domain.".json", $json, FILE_APPEND);
-print "\33[95mResult file >>> ".__DIR__."/".$domain.".json\33[0m\n";
-
 
 while(1){
 	$time = date("H:i:s");
-	print "\33[93mOptions:\ne -exit\np -print entered url webpage results\nf -follow webpage links\33[0m\n";
+	print "\33[93mOptions:\ne -exit\np -print main webpage results\nf -follow webpage links\33[0m\n";
 	switch (readline("> ")) {
 	 	case 'p':
 		print $string."\n";
@@ -84,7 +91,7 @@ while(1){
 		break 2;
 
 		case 'f':
-		follow_links($opts,$s_cookies,$doc,$domain,$scheme);
+		follow_links($opts,$cookies,$doc,$domain,$scheme);
 		break;
 
 	 	default:
@@ -108,43 +115,62 @@ exit();
 function extract_cookies($page,$domain){		
 
 	preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $page, $matches);
-	$s_cookies = array();		// all cookies
+	$cookie = array();	// all cookies
 	$log = "";
 	foreach($matches[1] as $item) {
 
 		$time = date("H:i:s");
 	    parse_str($item, $cookie);
-	    $s_cookies = array_merge($s_cookies, $cookie);
 	    $_s_cookies = explode("#", file_get_contents('SessionCookies.txt'));
-	    $_s_cookies = array_slice($_s_cookies, 4);
+	    $_s_cookies = array_slice($_s_cookies, 4);	//	cut SessionCookies.txt header
 
 
-	   for($i=0;$i<count($_s_cookies);$i++){	////**** 1	****////
+	    // TODO: AKO NEMA COOKIE-A, ONDA SE UZIMA ZADNJI IZ .txt
+	    // SessionCookies.txt position indexes
+	   	$indexS=0;		
+	    $indexcfduid=0;
 
-			if(!isset($s_cookies['__cfduid'])){
-				$s_cookies['__cfduid'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],56)) : "";
-				//	56 - start of '__cfduid' => cut the rest
+	   	for($i=0;$i<count($_s_cookies);$i++){	
+	   		
+	   		//	53 - start of '__cfduid' => cut the rest
+			if(!isset($cookie['__cfduid'])){
+				if(preg_match('/'.$domain.'/', $_s_cookies[$i])){
+					$cookie['__cfduid'] = trim(substr($_s_cookies[$i],-44));
+					$indexcfduid = $i;
+				}
 			}
-
-			if(!isset($s_cookies['S'])){
-				$s_cookies['S'] =  preg_match('/'.$domain.'/', $_s_cookies[$i]) ? trim(substr($_s_cookies[$i],36)) : "";
-				//	36 - start of 'S' => cut the rest   
+			////**** 1	****////
+			//	36 - start of 'S' => cut the rest
+			if(!isset($cookie['S'])){	
+				if(preg_match('/'.$domain.'/', $_s_cookies[$i])){
+					$cookie['S'] = $domain == substr($_s_cookies[$i], 10, strlen($domain)) ?: trim(substr($_s_cookies[$i],-26));
+					// compare domain with .txt cookies ==> 1st GET req. (_login.php) sends no cookies 
+				 	$indexS = $i;
+				}
 			}
 	   	}
+	   	// 3 scenarios when handling links
+	   	if(isset($cookie['S']) && isset($cookie['__cfduid'])){
+	   		$log .= "[".$time."] > S: ".$cookie['S']."; __cfduid: ".$cookie['__cfduid']."\r\n";
+	   	}
+	   	else if (!isset($cookie['S']) && isset($cookie['__cfduid'])){
+			$log .= "[".$time."] > S: ".trim(substr($_s_cookies[$indexS],36))."; __cfduid: ".$cookie['__cfduid']."\r\n";
+	   	}
+	   	else if (!isset($cookie['__cfduid']) && isset($cookie['S'])){
+	   		$log .= "[".$time."] > S: ".$cookie['S']."; __cfduid: ".trim(substr($_s_cookies[$indexcfduid],53))."\r\n";
+	   	}
 
-	   $log .= "[".$time."] > S: ".$s_cookies['S']."; __cfduid: ".$s_cookies['__cfduid']."\r\n";
 	}
 
 	file_put_contents($domain.".txt", $log, FILE_APPEND);
-	return $s_cookies;
 }
 
 /****************************************************************************************/
 
-function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain name
+function follow_links($opts,$cookies,$doc,$domain,$scheme){		
 
 	$links = $doc->getElementsByTagName('a');
-	$scraped = array();
+	$crawled = array();
 	$string = "[";
 	$url_regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?/";
 
@@ -167,31 +193,67 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 				print "\33[94m[".$time."] > Content URL >>> ".$url." >>> skipping..\33[0m\n";
 				$log .= "[".$time."] > Content URL [".strlen($url)." bytes] >>> ".$url." >>> skipping..";
 
-				file_put_contents($_url.".txt", $log, FILE_APPEND);
+				file_put_contents($domain.".txt", $log, FILE_APPEND);
 				break;
 			}
 
 
-			if(in_array($url, $scraped)){
+			if(in_array($url, $crawled)){
 			   break;  
 			}
-			$scraped[] = $url;
-
-
-
-			/////////		TODO: BOLJA LOGIKA FILTRIRANJA I ADAPTIRANJA LINKOVA!!!!
+			$crawled[] = $url;
 
 			////**** 1	****////
 			if(preg_match('/#.+/', $url) == 1 || $url != "href")	// '#' at index[0]
 			{
-				$log .= "[".$time."] > ".$url." >>> Invalid link format.. >>> Adapting.. \r\n";
+				$log .= "[".$time."] <".$url.">\r\n";
 				print "\033[95m> ".$url." >>> Invalid link format..\n> Adapting..\033[0m \n";
 
 				if(!preg_match($url_regex, $url) || substr($url, 0, 9) == 'index.php')
 				{
-					$url = $url[0] == '/' ? $scheme.":/".$_url."/".$url : $scheme."://".$_url."/".$url;
+					// TODO: FILTRIRATI URL KOJI NIJE PATH
+
+
+				
+
+
+
+					if($url[0] == "/" && substr($url, 0, 2) != "//"){
+						$url = $scheme."://".$domain.$url;
+							var_dump(dirname($url));
+					var_dump(realpath($url));
+					sleep(1);
+					}
+
+					else if($url[0] != "/"){
+						$url = $scheme."://".$domain."/".$url;
+					}
+
+					else if(substr($url, 0, 2) == "./"){
+						$url = $scheme."://".dirname($url)."/".$url;	// TESTIRATI
+						print "\n\n0\n\n";		// TEST
+						print "\x07";	// beep 
+						var_dump($url);
+						sleep(2);
+					}
+
+					else if(substr($url, 0, 3) == "../"){
+						$url = $scheme."://".$domain."/".realpath($url);	// TESTIRATI
+						print "\n\n1\n\n";		// TEST
+						print "\x07";	// beep 
+						var_dump($url);
+						sleep(2);
+					}
+					else if (substr($url, 0, 11) == "javascript:") {
+						$log .= "[".$time."] > javascript:  ".$url."\r\n";
+						break;
+					} 
+
 					echo "\33[32m> New url:  ".$url."\33[0m\n";
 					$log .= "[".$time."] > New url:  ".$url."\r\n";
+
+
+
 				}
 			}
 
@@ -215,10 +277,10 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 			}
 			curl_close($ch);
 
-			file_put_contents($_url.".txt", $log, FILE_APPEND);
+			file_put_contents($domain.".txt", $log, FILE_APPEND);
 			$log = "";
-			$s_cookies = extract_cookies($page,$_url);
-
+			extract_cookies($page,$domain);
+				
 			$doc = new DOMDocument();
 			@$doc->loadHTML($page);
 
@@ -227,16 +289,16 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 
 			print $string."\n";
 			print "\033[32m> Finished.\n";
-			print "\n\033[96m> Scraped webpages: ".(count($scraped)-1)."\33[0m\n";
+			print "\n\033[96m> Crawled webpages: ".(count($crawled)-1)."\33[0m\n";
 
 
-			$log = "[".$time."] > Finished. >>> Scraped webpages: ".(count($scraped)-1);
-			file_put_contents($_url.".txt", $log, FILE_APPEND);
+			$log = "[".$time."] > Finished. >>> Crawled webpages: ".(count($crawled)-1);
+			file_put_contents($domain.".txt", $log, FILE_APPEND);
 		}
 	}
 
-	print "\33[96mList of scraped pages:\n";
-	print_r($scraped);				///	TODO: TABLICA ILI STRINGOVI PO REDNIM BROJEVIMA
+	print "\33[96mList of crawled pages:\n";
+	print_r($crawled);		///	TODO: TABLICA ILI STRINGOVI PO REDNIM BROJEVIMA
 	print "\33[0m";
 
 	while(1)
@@ -254,8 +316,10 @@ function follow_links($opts,$s_cookies,$doc,$_url,$scheme){		// $_url <=> domain
 			$json = str_replace(D3, "", $json);
 			$json = str_replace(D4, "", $json);
 			$json = str_replace(D5, "", $json);
-			file_put_contents($_url.".json", $json, FILE_APPEND);
+			
+			file_put_contents($domain.".json", $json, FILE_APPEND);
 			print "\33[32mSaved.\33[0m\n";
+			print "\33[95mResult file >>> ".__DIR__."/".$domain.".json\33[0m\n";
 			break 2;
 
 			case 'p':
@@ -421,7 +485,7 @@ function scripts($doc){
 
 /****************************************************************************************/
 
-function divs($doc){
+/*function divs($doc){
 
 	$scripts = $doc->getElementsByTagName('div');
 	$fmtd = "";
@@ -434,7 +498,7 @@ function divs($doc){
 		}							
 	}
 	return $fmtd;
-}
+}*/
 
 /****************************************************************************************/
 
