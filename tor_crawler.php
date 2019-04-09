@@ -15,6 +15,7 @@ if(file_exists($domain.".txt") && strlen(file_get_contents($domain.".txt")) > 20
 }
 
 include_once('./vars/vars.php');	// constants/delimiters
+if(!file_exists(DATA_DIR)) mkdir(DATA_DIR);
 
 $publicIp = publicIp();
 
@@ -42,7 +43,7 @@ $log .= "Public IP: [".trim($publicIp)."]\r\n";
 print "\33[96m> Public IP: [".trim($publicIp)."]\33[0m\n";
 $log .= "[".date("H:i:s")."] > Host IP: ".$host_ip." | down/up speed: ".$speed."\r\n";
 
-file_put_contents($domain.".txt", $log, FILE_APPEND);
+file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
 $log = "";
 
 if(isset($argv[3]) && $argv[3] === 1) extract_cookies($page,$domain);	// retrieve session cookies
@@ -144,7 +145,7 @@ function extract_cookies($page,$domain){
 
 	}
 
-	file_put_contents($domain.".txt", $log, FILE_APPEND);
+	file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
 }
 
 /****************************************************************************************/
@@ -154,7 +155,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 	$links = $doc->getElementsByTagName('a');
 	$crawled = array();
 	$string = "[";
-	$url_regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?/";
+	$url_regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,5}(\/\S*)?/";
 
 	foreach ($links as $a) {	// loop through elements
 		foreach ($a->attributes as $link) {	// loop through attributes
@@ -162,8 +163,6 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$publicIp = publicIp();
 
 			$log = "\r\n-----------------------------------------------------------------\r\n";
-			$log .= "> Public IP: [".trim($publicIp)."]\r\n";
-			echo "> \33[96mPublic IP: [".trim($publicIp)."]\33[0m\n";
 			$url = trim($link->nodeValue);
 			$time = date("H:i:s");
 
@@ -171,16 +170,20 @@ function follow_links($opts,$doc,$domain,$scheme){
 			if($url == "#" || empty($url) || preg_match("/\/*[_logout\.php]+$/", $url))		//	prevent executing logout script
 				break;	// skip if page == _logout.php 		////**** 1	****////
 
+			// TODO: ADD MORE FORMATS
 
-			////////		TODO: LISTA FORMATA
-
-			if(preg_match("/(\.apk)|(\.ipa)|(\.mp3)|(\.mp4)|(\.jpg)|(\.png)$/", $url))		//	do not download content!!!
+			else if(preg_match("/(\.(x{0,1})(apk$))|(\.ipa$)|\.mp{1}[(3{0,1})|(4{0,1})]$|\.jp(e{0,1})g$|(\.png$)/", $url))		//	do not download content!!!
 			{
 				print "\33[94m[".$time."] > Content URL >>> ".$url." >>> skipping..\33[0m\n";
 				$log .= "[".$time."] > Content URL [".strlen($url)." bytes] >>> ".$url." >>> skipping..";
-
-				file_put_contents($domain.".txt", $log, FILE_APPEND);
+				file_put_contents(DATA_DIR."content_".$domain.".txt", $url."\n", FILE_APPEND);
+				file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
 				break;
+			}
+			else if (preg_match("/(\.js$)|(\.php$)/", $url))
+			{
+				print "\33[94m[".$time."] > Script format >>> skipping..\n\33[0m";
+				$log .= "[".$time."] > Script format >>> ".$url." >>> skipping..\r\n";
 			}
 
 
@@ -188,6 +191,9 @@ function follow_links($opts,$doc,$domain,$scheme){
 			   break;  
 			}
 			$crawled[] = $url;
+
+			echo "> \33[96mPublic IP: [".trim($publicIp)."]\33[0m\n";
+			$log .= "> Public IP: [".trim($publicIp)."]\r\n";
 
 			////**** 1	****////
 			if(preg_match('/#.+/', $url) == 1 || $url != "href")	// '#' at index[0]
@@ -197,6 +203,9 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 				if(!preg_match($url_regex, $url))
 				{
+					file_put_contents(DATA_DIR."rel_".$domain.".txt", $url."\n", FILE_APPEND);
+					// save link to relative file
+
 					if($url[0] == "/" && substr($url, 0, 2) != "//"){
 						$url = $scheme."://".$domain.$url;
 					}
@@ -228,6 +237,9 @@ function follow_links($opts,$doc,$domain,$scheme){
 					echo "\33[32m> New url:  ".$url."\33[0m\n";
 					$log .= "[".$time."] > New url:  ".$url."\r\n";
 				}
+				else {
+				file_put_contents(DATA_DIR."abs_".$domain.".txt", $url."\n", FILE_APPEND);
+				}
 			}
 
 			/***	cURL	**/
@@ -251,7 +263,6 @@ function follow_links($opts,$doc,$domain,$scheme){
 			curl_close($ch);
 
 			/*$dirformat=parse_url($url, PHP_URL_PATH);
-
 			if(is_dir($dirformat)){
 				$files = scandir($url);
 				$list="";
@@ -262,7 +273,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 				$log .= $list."\r\n";
 			}*/
 
-			file_put_contents($domain.".txt", $log, FILE_APPEND);
+			file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
 			$log = "";
 			extract_cookies($page,$domain); // retrieve session cookies
 				
@@ -279,7 +290,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 			$log = "[".$time."] > Finished. >>> Crawled webpages: ".(count($crawled)-1);
 
-			file_put_contents($domain.".txt", $log, FILE_APPEND);
+			file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
 		}
 	}
 
@@ -303,7 +314,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$json = str_replace(D4, "", $json);
 			$json = str_replace(D5, "", $json);
 			
-			file_put_contents($domain.".json", $json, FILE_APPEND);
+			file_put_contents(DATA_DIR.$domain.".json", $json, FILE_APPEND);
 			print "\33[32mSaved.\33[0m\n";
 			print "\33[95mResult file >>> ".__DIR__."/".$domain.".json\33[0m\n";
 			break 2;
