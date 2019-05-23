@@ -1,3 +1,3 @@
 # command-line-crawler
 [unfinished]
-supports curl with Tor socks5
+- supports curl with Tor socks5
