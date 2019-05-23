@@ -1,6 +1,6 @@
 <?php
 
-if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php tor_crawler.php <example.com> <http/https/ftp>\n");
+if($argc < 3 || $argc > 4) die("Assign domain and scheme. -> php crawler.php <example.com> <http/https/ftp>\n");
 
 //	1048576 bytes === 1 MB
 
