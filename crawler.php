@@ -382,7 +382,7 @@ function select_opts($flag,$scheme,$url){
 
 		$post_data = 'login=100000000';	////**** 1	****////
 		return array(
-			CURLOPT_URL 			=> preg_match('/^'.$scheme.'./', $url) ? $url."/php/_login.php" : $scheme."://".$url."/php/_login.php",
+			CURLOPT_URL 			=> preg_match('/^'.$scheme.'./', $url) ? $url."<LOGINPATH>" : $scheme."://".$url."<LOGINPATH>",
 		    CURLOPT_HEADER 			=> 1,
 		    CURLOPT_VERBOSE 		=> 1,
 		    CURLOPT_POST 			=> 1,
