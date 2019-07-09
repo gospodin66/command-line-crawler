@@ -149,8 +149,7 @@ function extract_cookies($page,$domain){
 	   	}
 
 	}
-
-	file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
+	file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 }
 
 /****************************************************************************************/
@@ -182,8 +181,8 @@ function follow_links($opts,$doc,$domain,$scheme){
 			{
 				print "\33[94m[".$time."] > Content URL >>> ".$url." >>> skipping..\33[0m\n";
 				$log .= "[".$time."] > Content URL [".strlen($url)." bytes] >>> ".$url." >>> skipping..";
-				file_put_contents(DATA_DIR."content_".$domain.".txt", $url."\n", FILE_APPEND);
-				file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
+				file_put_contents(DATA_DIR."content_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
+				file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 				break;
 			}
 			else if (preg_match("/(\.js$)|(\.php$)/", $url))
@@ -208,7 +207,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 				if(!preg_match($url_regex, $url))
 				{
-					file_put_contents(DATA_DIR."rel_".$domain.".txt", $url."\n", FILE_APPEND);
+					file_put_contents(DATA_DIR."rel_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
 					// save link to relative file
 
 					if($url[0] == "/" && substr($url, 0, 2) != "//"){
@@ -243,7 +242,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 					$log .= "[".$time."] > New url:  ".$url."\r\n";
 				}
 				else {
-				file_put_contents(DATA_DIR."abs_".$domain.".txt", $url."\n", FILE_APPEND);
+				file_put_contents(DATA_DIR."abs_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
 				}
 			}
 
@@ -267,7 +266,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 			}
 			curl_close($ch);
 
-			file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
+			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 			$log = "";
 			extract_cookies($page,$domain); // retrieve session cookies
 				
@@ -284,7 +283,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 			$log = "[".$time."] > Finished. >>> Crawled webpages: ".(count($crawled)-1);
 
-			file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
+			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 		}
 	}
 
@@ -308,7 +307,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$json = str_replace(D4, "", $json);
 			$json = str_replace(D5, "", $json);
 			
-			file_put_contents(DATA_DIR.$domain.".json", $json, FILE_APPEND);
+			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".json", $json, FILE_APPEND);
 			print "\33[32mSaved.\33[0m\n";
 			print "\33[95mResult file >>> ".__DIR__."/".$domain.".json\33[0m\n";
 			break 2;
