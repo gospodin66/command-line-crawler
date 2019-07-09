@@ -45,10 +45,16 @@ $log .= "> Page size: [".strlen($page)."] bytes.\r\n\n";
 
 $log .= "[".date("H:i:s")."] > Host IP: ".$host_ip." | down/up speed: ".$speed."\r\n";
 
-file_put_contents(DATA_DIR.$domain.".txt", $log, FILE_APPEND);
+file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 $log = "";
 
+// ::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
 if(isset($argv[3]) && $argv[3] === 1) extract_cookies($page,$domain);	// retrieve session cookies
+
+
+// ::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 $doc = new DOMDocument();
 @$doc->loadHTML($page);
