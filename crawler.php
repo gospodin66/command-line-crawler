@@ -13,7 +13,7 @@ $opts  = getopt($short,$long);
 
 
 if(count($opts) < 2){
-	die("Assign --path & --scheme (optional) --torprox\n");
+	die("Assign [-p]--path <path> [-s]--scheme <http/s> (optional) [-x]--torprox <1/0>\n");
 }
 
 $domain = array_key_exists("path", $opts) ? trim($opts['path']) : trim($opts['p']);
