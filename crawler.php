@@ -1,17 +1,40 @@
 <?php
 
-if($argc < 2 || $argc > 3) die("Assign domain and scheme. \n> php crawler.php <https://example.com>\n");
+include 'Timer.php';
+$timer = new Timer();
 
-//	1048576 bytes === 1 MB
+$short = "p:s:x:";
+$long  = array(
+	"path:",
+	"scheme:",
+	"torprox:"
+);
+$opts  = getopt($short,$long);
 
 
-$domain = trim($argv[1]);
-$scheme = preg_match('/^(https):\/\//', $domain) ? substr($domain, 0,5) : substr($domain, 0,4);
-$domain = preg_match('/^(https):\/\//', $domain) ? substr($domain, 8)   : substr($domain, 7);
+if(count($opts) < 2){
+	die("Assign --path & --scheme (optional) --torprox\n");
+}
 
-if(file_exists($domain.".txt") && strlen(file_get_contents($domain.".txt")) > 200){
-	unlink($domain.".txt");
-	print "\33[93m".$domain.".txt cleared.\33[0m\n";
+$domain = array_key_exists("path", $opts) ? trim($opts['path']) : trim($opts['p']);
+$scheme = array_key_exists("scheme", $opts) ? trim($opts['scheme']) : trim($opts['s']);
+$prox_opt = array_key_exists("torprox", $opts) ? trim($opts['torprox']) : trim($opts['x']);
+
+
+if(!is_int($prox_opt))
+	$prox_opt = intval($prox_opt);
+
+
+if($prox_opt === 1){}
+
+else $prox_opt = 0;
+
+$parsed_url = parse_url($scheme."://".$domain);
+
+
+if(file_exists($parsed_url['host'].".txt") && strlen(file_get_contents($parsed_url['host'].".txt")) > 200){
+	unlink($parsed_url['host'].".txt");
+	print "\33[93m".$parsed_url['host'].".txt cleared.\33[0m\n";
 }
 
 include_once('vars/vars.php');	// constants/delimiters
@@ -20,7 +43,9 @@ if(!file_exists(DATA_DIR)) mkdir(DATA_DIR);
 
 $log = "\r\n************************************************************************\r\n";
 $ch = curl_init();
-$opts = select_opts($scheme,$domain);
+
+//$prox_opt = isset($argv[2]) && $argv[2] === "1" ? 1 : 0;
+$opts     = select_opts($scheme,$domain,$prox_opt);
 
 
 curl_setopt_array($ch, $opts);
@@ -37,24 +62,17 @@ $curlinfo = curl_getinfo($ch);
 curl_close($ch);
 
 $host_ip = $curlinfo['primary_ip'].":".$curlinfo['primary_port'];
-$speed = $curlinfo['speed_download']."/".$curlinfo['speed_upload'];
-$log .= "> Page size: [".strlen($page)."] bytes.\r\n\n";
+$speed   = $curlinfo['speed_download']."/".$curlinfo['speed_upload'];
+$log    .= "> Page size: [".strlen($page)."] bytes.\r\n\n";
 
 //$log .= "Public IP: [".trim($publicIp)."]\r\n";
 //print "\33[96m> Public IP: [".trim($publicIp)."]\33[0m\n";
 
 $log .= "[".date("H:i:s")."] > Host IP: ".$host_ip." | down/up speed: ".$speed."\r\n";
 
-file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
+file_put_contents(DATA_DIR.str_replace("/", "-", $parsed_url['host']).".txt", $log, FILE_APPEND);
+
 $log = "";
-
-// ::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-
-if(isset($argv[3]) && $argv[3] === 1) extract_cookies($page,$domain);	// retrieve session cookies
-
-
-// ::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 $doc = new DOMDocument();
 @$doc->loadHTML($page);
@@ -86,7 +104,7 @@ while(1){
 		break 2;
 
 		case 'f':
-		follow_links($opts,$doc,$domain,$scheme);
+		follow_links($opts,$doc,$parsed_url['host'],$scheme,$prox_opt);
 		break;
 
 	 	default:
@@ -104,9 +122,13 @@ exit();
 /****************************************************************************************/
 
 
-function extract_cookies($page,$domain){		
+function extract_cookies($page,$domain){
 
-	preg_match_all('/^Set-Cookie:\s*([^;]*)/mi', $page, $matches);
+	var_dump($page);
+	
+	/*
+
+	preg_match_all('/^Cookie:\s*([^;]*)/mi', $page, $matches); // Set-Cookie
 	$cookie = array();	// all cookies
 	$log = "";
 	foreach($matches[1] as $item) {
@@ -120,20 +142,13 @@ function extract_cookies($page,$domain){
 	   	$indexS=0;		
 	    $indexcfduid=0;
 
+
 	   	for($i=0;$i<count($_s_cookies);$i++){	
 	   		
 			if(!isset($cookie['__cfduid'])){
 				if(preg_match('/'.$domain.'/', $_s_cookies[$i])){
 					$cookie['__cfduid'] = trim(substr($_s_cookies[$i],-44));
 					$indexcfduid = $i;
-				}
-			}
-			////**** 1	****////
-			if(!isset($cookie['S'])){	
-				if(preg_match('/'.$domain.'/', $_s_cookies[$i])){
-					$cookie['S'] = $domain == substr($_s_cookies[$i], 10, strlen($domain)) ?: trim(substr($_s_cookies[$i],-26));
-					// compare domain with .txt cookies ==> 1st GET req. (_login.php) sends no cookies 
-				 	$indexS = $i;
 				}
 			}
 	   	}
@@ -150,11 +165,13 @@ function extract_cookies($page,$domain){
 
 	}
 	file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
+
+	*/
 }
 
 /****************************************************************************************/
 
-function follow_links($opts,$doc,$domain,$scheme){		
+function follow_links($opts,$doc,$domain,$scheme,$prox_opt){		
 
 	$links = $doc->getElementsByTagName('a');
 	$crawled = array();
@@ -162,22 +179,26 @@ function follow_links($opts,$doc,$domain,$scheme){
 	$url_regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,5}(\/\S*)?/";
 
 	foreach ($links as $a) {	// loop through elements
-			//$publicIp = publicIp();
+		
+		//$publicIp = publicIp();
+		$timer2 = new Timer();
+
 
 		foreach ($a->attributes as $link) {	// loop through attributes
 
-
+			// log delimiter
 			$log = "\r\n-----------------------------------------------------------------\r\n";
 			$url = trim($link->nodeValue);
 			$time = date("H:i:s");
 
-
-			if($url == "#" || empty($url) || preg_match("/\/*[_logout\.php]+$/", $url))		
-				break;	// skip if page == _logout.php => prevent executing logout script
+			// skip if link empty
+			if($url == "#" || empty($url))
+				break;	
 
 			// TODO: ADD MORE FORMATS
-
-			else if(preg_match("/(\.(x{0,1})(apk$))|(\.ipa$)|\.mp{1}[(3{0,1})|(4{0,1})]$|\.jp(e{0,1})g$|(\.png$)/", $url))		//	do not download content!!!
+			// do not download content!!!
+			
+			else if(preg_match("/(\.(x{0,1})(apk$))|(\.ipa$)|\.mp{1}[(3{0,1})|(4{0,1})]$|\.jp(e{0,1})g$|(\.png$)/", $url))
 			{
 				print "\33[94m[".$time."] > Content URL >>> ".$url." >>> skipping..\33[0m\n";
 				$log .= "[".$time."] > Content URL [".strlen($url)." bytes] >>> ".$url." >>> skipping..";
@@ -187,8 +208,9 @@ function follow_links($opts,$doc,$domain,$scheme){
 			}
 			else if (preg_match("/(\.js$)|(\.php$)/", $url))
 			{
-				print "\33[94m[".$time."] > Script format >>> skipping..\n\33[0m";
+				print "\33[95m[".$time."] > Script format >>> skipping..\n\33[0m";
 				$log .= "[".$time."] > Script format >>> ".$url." >>> skipping..\r\n";
+				break;
 			}
 
 
@@ -200,55 +222,64 @@ function follow_links($opts,$doc,$domain,$scheme){
 			//echo "> \33[96mPublic IP: [".trim($publicIp)."]\33[0m\n";
 			//$log .= "> Public IP: [".trim($publicIp)."]\r\n";
 
-			if(preg_match('/#.+/', $url) == 1 || $url != "href")	// '#' at index[0]
-			{
+			if(preg_match($url_regex, $url) === 0)
+			{ 
 				$log .= "[".$time."] > URL: <".$url.">\r\n";
 				print "\033[95m> ".$url." >>> Invalid link format..\n> Adapting..\033[0m \n";
 
-				if(!preg_match($url_regex, $url))
+				// save link to relative file
+				file_put_contents(DATA_DIR."rel_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
+
+				if($url[0] == "/" && substr($url, 0, 2) != "//")
 				{
-					file_put_contents(DATA_DIR."rel_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
-					// save link to relative file
-
-					if($url[0] == "/" && substr($url, 0, 2) != "//"){
-						$url = $scheme."://".$domain.$url;
-					}
-
-					else if($url[0] != "/"){
-						$url = $scheme."://".$domain."/".$url;
-					}
-
-					else if(substr($url, 0, 2) == "./"){
-						$url = $scheme."://".dirname($url)."/".$url;	// TESTIRATI
-						print "\n\n0\n\n";		// TEST
-						print "\x07";	// beep 
-						var_dump($url);
-						sleep(2);
-					}
-
-					else if(substr($url, 0, 3) == "../"){
-						$url = $scheme."://".$domain."/".realpath($url);	// TESTIRATI
-						print "\n\n1\n\n";		// TEST
-						print "\x07";	// beep 
-						var_dump($url);
-						sleep(2);
-					}
-					else if (substr($url, 0, 11) == "javascript:") {
-						$log .= "[".$time."] > javascript:  ".$url."\r\n";
-						break;
-					} 
-
-					echo "\33[32m> New url:  ".$url."\33[0m\n";
-					$log .= "[".$time."] > New url:  ".$url."\r\n";
+					$url = $scheme."://".$domain.$url;
 				}
-				else {
-				file_put_contents(DATA_DIR."abs_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
+
+				else if(substr($url, 0, 2) == "./")
+				{
+					$url = $scheme."://".$domain."/".basename($url);
+					var_dump($url);
 				}
+
+				else if(substr($url, 0, 3) == "../")
+				{
+					$url = $scheme."://".$domain."/".realpath($url).basename($url);
+					var_dump($url);
+					sleep(3);
+				}
+
+				else if (substr($url, 0, 11) == "javascript:")
+				{
+					$log .= "[".$time."] > javascript:  ".$url."\r\nScript format, skipping..\r\n";
+					print "\033[95m>Script format, skipping..\033[0m\r\n";
+					break;
+				}
+
+				else
+				{
+					$url = $scheme."://".$domain."/".$url;
+				}
+
+				echo "\33[32m> New url:  ".$url."\33[0m\n";
+				$log .= "[".$time."] > New url:  ".$url."\r\n";
 			}
+			else
+			{
+				file_put_contents(DATA_DIR."abs_".str_replace("/", "-", $domain).".txt", $url."\n", FILE_APPEND);
+			}
+
+
+			if(check_base_domain($domain,$url,$scheme) === false)
+			{
+				print "\033[95m> Invalid base domain, skipping..\33[0m\r\n";
+				sleep(2);
+				continue;
+			}
+
 
 			/***	cURL	**/
 			$ch   = curl_init();
-			$opts = select_opts($scheme,$url);
+			$opts = select_opts($scheme,$url,$prox_opt);
 			curl_setopt_array($ch, $opts);
 			
 			$page 	  = curl_exec($ch);
@@ -256,7 +287,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$host_ip  = $curlinfo['primary_ip'].":".$curlinfo['primary_port'];
 			$speed    = $curlinfo['speed_download']."/".$curlinfo['speed_upload'];
 			$log     .= "[".$time."] > Host IP: ".$host_ip." | down/up speed: ".$speed."\n";
-			$log     .= "\r\n> Page size: [".strlen($page)."] bytes.\r\n\n";		// strlen == bytes?!?
+			$log     .= "\r\n> Page size: [".strlen($page)."] bytes.\r\n\n"; // strlen == bytes?!?
 
 			if(curl_errno($ch)){ 		// check for execution errors
 				print "Scraper error: ".curl_error($ch)."\n";
@@ -276,7 +307,7 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$string .= D1.header_links($doc).D2.metas($doc).D3.hrefs($doc).D4.imgs($doc).D5.scripts($doc);
 			$string = str_replace("||", "\n", $string);
 
-			print $string."\n";
+			//print $string."\n";
 			print "\033[32m> Finished.\n";
 			print "\n\033[96m> Crawled webpages: ".(count($crawled)-1)."\33[0m\n";
 
@@ -284,9 +315,12 @@ function follow_links($opts,$doc,$domain,$scheme){
 			$log = "[".$time."] > Finished. >>> Crawled webpages: ".(count($crawled)-1);
 
 			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
+			print "Timer: ".$timer2->get_execution_time()." [s]\n";
 		}
+		unset($timer2); // timer for pages
 	}
 
+	unset($timer);
 	print "\33[96mList of crawled pages:\n";
 	print_r($crawled);
 	print "\33[0m";
@@ -300,12 +334,13 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 			case 's':
 			$string = substr_replace($string, ']', -2, 2);
-			$json = str_replace("> ", "", $string);
-			$json = str_replace(D1, "", $json);
-			$json = str_replace(D2, "", $json);
-			$json = str_replace(D3, "", $json);
-			$json = str_replace(D4, "", $json);
-			$json = str_replace(D5, "", $json);
+			$json   = str_replace("> ", "", $string);
+			$json   = str_replace(D1, "", $json);
+			$json   = str_replace(D2, "", $json);
+			$json   = str_replace(D3, "", $json);
+			$json   = str_replace(D4, "", $json);
+			$json   = str_replace(D5, "", $json);
+			$json   = str_replace("\n", "", $json);
 			
 			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".json", $json, FILE_APPEND);
 			print "\33[32mSaved.\33[0m\n";
@@ -325,38 +360,95 @@ function follow_links($opts,$doc,$domain,$scheme){
 
 /****************************************************************************************/
 
-function select_opts($scheme,$url){
+function select_opts($scheme,$url,$use_prox){
 
 	$torsocks5prox = '127.0.0.1:9150';	// 9150 Torsocks5 port
 
-	return array(
-		CURLOPT_URL 				=> preg_match('/^'.$scheme.'./', $url) ? $url : $scheme."://".$url,
-	    CURLOPT_HEADER 				=> 1,
-	    CURLOPT_VERBOSE 			=> 1,
-	    //CURLOPT_POST 				=> 0,
-	    CURLOPT_RETURNTRANSFER 		=> 1,	// return page content
-	    CURLOPT_CONNECTTIMEOUT 		=> 30,	// connect timeout
-	    CURLOPT_TIMEOUT        		=> 30,	// response timeout
-	    CURLOPT_SSL_VERIFYPEER  	=> $scheme == 'https' ? 1 : 0,
-	    CURLOPT_SSL_VERIFYHOST  	=> $scheme == 'https' ? 2 : 0,
-	    CURLOPT_FOLLOWLOCATION		=> 1,
-	    //CURLOPT_AUTOREFERER		=> 0,	// request origin
-	    //CURLOPT_BINARYTRANSFER 	=> 0,	// raw output
-		CURLOPT_FRESH_CONNECT		=> 1,
-		//CURLOPT_FORBID_REUSE		=> 1,
-		//CURLOPT_UPLOAD			=> 1,
-	    CURLOPT_MAXREDIRS 			=> 5,
-		CURLOPT_COOKIEJAR			=> 'SessionCookies.txt',
-		CURLOPT_COOKIEFILE			=> 'SessionCookies.txt',
-	    CURLOPT_HTTPHEADER			=> array(
-	    	'X-Frame-Options: deny',
-		    'User-Agent: '.setUserAgent(),
-		    'Accept: */*',
-		    'Cache-Control: no-cache',
-	    ),
-	    CURLOPT_PROXYTYPE			=> CURLPROXY_SOCKS5_HOSTNAME,
-		CURLOPT_PROXY 				=> $torsocks5prox 
-	 );
+	if($use_prox === 1)
+	{
+		$opts = array(
+			CURLOPT_URL 				=> preg_match('/^'.$scheme.'./', $url) ? $url : $scheme."://".$url,
+		    CURLOPT_HEADER 				=> 1,
+		    CURLOPT_VERBOSE 			=> 1,
+		    CURLOPT_RETURNTRANSFER 		=> 1,
+		    CURLOPT_CONNECTTIMEOUT 		=> 30,	
+		    CURLOPT_TIMEOUT        		=> 30,	
+		    CURLOPT_SSL_VERIFYPEER  	=> $scheme == 'https' ? 1 : 0,
+		    CURLOPT_SSL_VERIFYHOST  	=> $scheme == 'https' ? 2 : 0,
+		    CURLOPT_FOLLOWLOCATION		=> 1,
+		    CURLOPT_MAXREDIRS 			=> 5,
+			CURLOPT_COOKIEJAR			=> 'SessionCookies.txt',
+			CURLOPT_COOKIEFILE			=> 'SessionCookies.txt',
+			CURLOPT_PROXY 				=> $torsocks5prox, 
+		    CURLOPT_PROXYTYPE			=> CURLPROXY_SOCKS5_HOSTNAME,
+		    CURLOPT_HTTPHEADER			=> array(
+		    	'X-Frame-Options: deny',
+			    'User-Agent: '.setUserAgent(),
+			    'Accept: */*',
+			    'Cache-Control: no-cache',
+		    )
+		 );
+	}
+	else
+	{
+		$opts = array(
+			CURLOPT_URL 				=> preg_match('/^'.$scheme.'./', $url) ? $url : $scheme."://".$url,
+		    CURLOPT_HEADER 				=> 1,
+		    CURLOPT_VERBOSE 			=> 1,
+		    CURLOPT_RETURNTRANSFER 		=> 1,
+		    CURLOPT_CONNECTTIMEOUT 		=> 30,
+		    CURLOPT_TIMEOUT        		=> 30,
+		    CURLOPT_SSL_VERIFYPEER  	=> $scheme == 'https' ? 1 : 0,
+		    CURLOPT_SSL_VERIFYHOST  	=> $scheme == 'https' ? 2 : 0,
+		    CURLOPT_FOLLOWLOCATION		=> 1,
+		    CURLOPT_MAXREDIRS 			=> 5,
+			CURLOPT_COOKIEJAR			=> 'SessionCookies.txt',
+			CURLOPT_COOKIEFILE			=> 'SessionCookies.txt',
+		    CURLOPT_HTTPHEADER			=> array(
+		    	'X-Frame-Options: deny',
+			    'User-Agent: '.setUserAgent(),
+			    'Accept: */*',
+			    'Cache-Control: no-cache',
+		    )
+		 );
+	}
+
+	return $opts;
+
+	/********************/
+    //CURLOPT_AUTOREFERER		=> 0,	// request origin
+    //CURLOPT_BINARYTRANSFER 	=> 0,	// raw output
+	//CURLOPT_FRESH_CONNECT		=> 1,
+    //CURLOPT_POST 				=> 0,
+	//CURLOPT_FORBID_REUSE		=> 1,
+	//CURLOPT_UPLOAD			=> 1,
+	/********************/
+}
+
+/****************************************************************************************/
+
+function check_base_domain($base_domain, $link_domain, $scheme){	
+
+
+	$link_domain = parse_url($link_domain);
+
+
+	if(substr($base_domain, 0,4) === "www.")
+		$base_domain = substr($base_domain,4);
+
+	if(substr($link_domain['host'], 0,4) === "www.")
+		$link_domain['host'] = substr($link_domain['host'],4);
+
+
+	var_dump($base_domain, $link_domain['host']);
+
+
+	// subdomain check
+    if(strpos($link_domain['host'], $base_domain))
+    	return true;
+
+
+	return strcmp($base_domain, $link_domain['host']) === 0 ? true : false; 
 }
 
 /****************************************************************************************/
