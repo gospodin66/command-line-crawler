@@ -1,5 +1,11 @@
 <?php
 
+if (PHP_SAPI !== 'cli')
+{
+	echo "Script needs to be run as cli.\n";
+	exit(1);
+}
+
 include 'Timer.php';
 $timer = new Timer();
 
