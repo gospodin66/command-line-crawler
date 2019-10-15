@@ -1,13 +1,7 @@
 <?php
 
 if (PHP_SAPI !== 'cli')
-{
-	echo "Script needs to be run as cli.\n";
-	exit(1);
-}
-
-include 'Timer.php';
-$timer = new Timer();
+	die("Script needs to be run as cli.\n");
 
 $short = "p:s:x:";
 $long  = array(
@@ -18,47 +12,48 @@ $long  = array(
 $opts  = getopt($short,$long);
 
 
-if(count($opts) < 2){
+if(count($opts) < 2)
 	die("Assign [-p]--path <path> [-s]--scheme <http/s> (optional) [-x]--torprox <1/0>\n");
-}
 
-$domain = array_key_exists("path", $opts) ? trim($opts['path']) : trim($opts['p']);
-$scheme = array_key_exists("scheme", $opts) ? trim($opts['scheme']) : trim($opts['s']);
-$prox_opt = array_key_exists("torprox", $opts) ? trim($opts['torprox']) : trim($opts['x']);
+
+include 'Timer.php';
+$timer = new Timer();
+
+$domain   = array_key_exists("path", $opts)    ? trim($opts['path'])    : trim($opts['p']);
+$scheme   = array_key_exists("scheme", $opts)  ? trim($opts['scheme'])  : trim($opts['s']);
+
+// prox_opt is optional
+if($opts === 3)
+	$prox_opt = array_key_exists("torprox", $opts) ? trim($opts['torprox']) : trim($opts['x']);
+else
+	$prox_opt = 0;
 
 
 if(!is_int($prox_opt))
 	$prox_opt = intval($prox_opt);
 
 
-if($prox_opt === 1){}
-
-else $prox_opt = 0;
+if($prox_opt === 1){}	// if prox_opt is set, do nothing
+else 
+	$prox_opt = 0;	// else prox_opt is not set => 0
 
 $parsed_url = parse_url($scheme."://".$domain);
-
-
-if(file_exists($parsed_url['host'].".txt") && strlen(file_get_contents($parsed_url['host'].".txt")) > 200){
-	unlink($parsed_url['host'].".txt");
-	print "\33[93m".$parsed_url['host'].".txt cleared.\33[0m\n";
-}
 
 include_once('vars/vars.php');	// constants/delimiters
 if(!file_exists(DATA_DIR)) mkdir(DATA_DIR);
 
-
-$log = "\r\n************************************************************************\r\n";
+$log = LOG_DELIMITER;
 $ch = curl_init();
-
-//$prox_opt = isset($argv[2]) && $argv[2] === "1" ? 1 : 0;
-$opts     = select_opts($scheme,$domain,$prox_opt);
+$opts = select_opts($scheme,$domain,$prox_opt);
 
 
 curl_setopt_array($ch, $opts);
 $page = curl_exec($ch);
 
 
-if(curl_errno($ch)){ 	// check for execution errors
+// check for execution errors
+if(curl_errno($ch))
+{ 	
 	$log .= "Scraper error: ".curl_error($ch)."\r\n";
 	die("Scraper error: ".curl_error($ch)."\n");
 }
@@ -125,54 +120,11 @@ print "\033[32m\nFinished.\n\033[0m";
 exit();
 
 /****************************************************************************************/
-/****************************************************************************************/
 
 
 function extract_cookies($page,$domain){
-
-	var_dump($page);
 	
-	/*
-
-	preg_match_all('/^Cookie:\s*([^;]*)/mi', $page, $matches); // Set-Cookie
-	$cookie = array();	// all cookies
-	$log = "";
-	foreach($matches[1] as $item) {
-
-		$time = date("H:i:s");
-	    parse_str($item, $cookie);
-	    $_s_cookies = explode("#", file_get_contents('SessionCookies.txt'));
-	    $_s_cookies = array_slice($_s_cookies, 4);	//	cut SessionCookies.txt header
-
-	    // SessionCookies.txt position indexes
-	   	$indexS=0;		
-	    $indexcfduid=0;
-
-
-	   	for($i=0;$i<count($_s_cookies);$i++){	
-	   		
-			if(!isset($cookie['__cfduid'])){
-				if(preg_match('/'.$domain.'/', $_s_cookies[$i])){
-					$cookie['__cfduid'] = trim(substr($_s_cookies[$i],-44));
-					$indexcfduid = $i;
-				}
-			}
-	   	}
-	   	// 3 scenarios to avoid warnings when handling session cookies
-	   	if(isset($cookie['S']) && isset($cookie['__cfduid'])){
-	   		$log .= "[".$time."] > S: ".$cookie['S']."; __cfduid: ".$cookie['__cfduid']."\r\n";
-	   	}
-	   	else if (!isset($cookie['S']) && isset($cookie['__cfduid'])){
-			$log .= "[".$time."] > S: ".trim(substr($_s_cookies[$indexS],36))."; __cfduid: ".$cookie['__cfduid']."\r\n";
-	   	}
-	   	else if (!isset($cookie['__cfduid']) && isset($cookie['S'])){
-	   		$log .= "[".$time."] > S: ".$cookie['S']."; __cfduid: ".trim(substr($_s_cookies[$indexcfduid],53))."\r\n";
-	   	}
-
-	}
-	file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
-
-	*/
+	// ::TODO::
 }
 
 /****************************************************************************************/
@@ -186,22 +138,21 @@ function follow_links($opts,$doc,$domain,$scheme,$prox_opt){
 
 	foreach ($links as $a) {	// loop through elements
 		
-		//$publicIp = publicIp();
+		// $publicIp = publicIp();
 		$timer2 = new Timer();
-
 
 		foreach ($a->attributes as $link) {	// loop through attributes
 
 			// log delimiter
-			$log = "\r\n-----------------------------------------------------------------\r\n";
-			$url = trim($link->nodeValue);
+			$log  = LOG_DELIMITER;
+			$url  = trim($link->nodeValue);
 			$time = date("H:i:s");
 
 			// skip if link empty
 			if($url == "#" || empty($url))
 				break;	
 
-			// TODO: ADD MORE FORMATS
+			// TODO:: add more formats
 			// do not download content!!!
 			
 			else if(preg_match("/(\.(x{0,1})(apk$))|(\.ipa$)|\.mp{1}[(3{0,1})|(4{0,1})]$|\.jp(e{0,1})g$|(\.png$)/", $url))
@@ -282,8 +233,6 @@ function follow_links($opts,$doc,$domain,$scheme,$prox_opt){
 				continue;
 			}
 
-
-			/***	cURL	**/
 			$ch   = curl_init();
 			$opts = select_opts($scheme,$url,$prox_opt);
 			curl_setopt_array($ch, $opts);
@@ -305,7 +254,7 @@ function follow_links($opts,$doc,$domain,$scheme,$prox_opt){
 
 			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 			$log = "";
-			extract_cookies($page,$domain); // retrieve session cookies
+			// extract_cookies($page,$domain); // retrieve session cookies ::: NOT IMPLEMENTED
 				
 			$doc = new DOMDocument();
 			@$doc->loadHTML($page);
@@ -388,7 +337,6 @@ function select_opts($scheme,$url,$use_prox){
 			CURLOPT_PROXY 				=> $torsocks5prox, 
 		    CURLOPT_PROXYTYPE			=> CURLPROXY_SOCKS5_HOSTNAME,
 		    CURLOPT_HTTPHEADER			=> array(
-		    	'X-Frame-Options: deny',
 			    'User-Agent: '.setUserAgent(),
 			    'Accept: */*',
 			    'Cache-Control: no-cache',
@@ -411,7 +359,6 @@ function select_opts($scheme,$url,$use_prox){
 			CURLOPT_COOKIEJAR			=> 'SessionCookies.txt',
 			CURLOPT_COOKIEFILE			=> 'SessionCookies.txt',
 		    CURLOPT_HTTPHEADER			=> array(
-		    	'X-Frame-Options: deny',
 			    'User-Agent: '.setUserAgent(),
 			    'Accept: */*',
 			    'Cache-Control: no-cache',
