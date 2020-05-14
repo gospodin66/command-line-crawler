@@ -6,7 +6,7 @@
 	define("D4", "\n\33[93m**********************<img>**********************\n\n\33[0m");
 	define("D5", "\n\33[93m*********************<script>********************\n\n\33[0m");
 	define("LOG_DELIMITER", "\r\n*************************************************\r\n");
-	define("DATA_DIR", "./crawled_data/");
+	define("DATA_DIR", "crawled_data/");
 
 	//		$white = "\e[97m";
 	//		$black = "\e[30m\e[1m";
@@ -29,5 +29,12 @@
 	//		$grey = "\e[37m";
 	//		$cyan = "\e[36m";
 	//		$bold   = "\e[1m";
+	
+    //CURLOPT_AUTOREFERER		=> 0,	// request origin
+    //CURLOPT_BINARYTRANSFER 	=> 0,	// raw output
+	//CURLOPT_FRESH_CONNECT		=> 1,
+    //CURLOPT_POST 				=> 0,
+	//CURLOPT_FORBID_REUSE		=> 1,
+	//CURLOPT_UPLOAD			=> 1,
 
 ?>
