@@ -75,12 +75,12 @@ $doc = new DOMDocument();
 $title = $doc->getElementsByTagName("title");
 @$title = $title->item(0)->nodeValue;
 
-$header_links = header_links($doc);
-$metas   	  = metas($doc);
-$hrefs   	  = hrefs($doc);
-$imgs 	 	  = imgs($doc);
-$scripts 	  = scripts($doc);
-$forms 	 	  = forms($doc);
+$header_links [] = _get_elements($doc,'meta');
+$metas   	  [] = _get_elements($doc,'link');
+$imgs 	 	  [] = _get_elements($doc,'img');
+$scripts 	  [] = _get_elements($doc,'script');
+$hrefs   	  [] = _get_elements($doc,'a');
+$forms 	 	  [] = _get_elements($doc,'form');
 
 $json = json_encode([$header_links,$metas,$hrefs,$imgs,$scripts,$forms]);
 
@@ -221,14 +221,14 @@ function follow_links($opts,$doc,$domain,$scheme,$prox_opt){
 			file_put_contents(DATA_DIR.str_replace("/", "-", $domain).".txt", $log, FILE_APPEND);
 		}
 
-		// filter arrays!!
+		// TODO:: filter arrays!!
 
-		$header_links [] = header_links($doc);
-		$metas   	  [] = metas($doc);
-		$hrefs   	  [] = hrefs($doc);
-		$imgs 	 	  [] = imgs($doc);
-		$scripts 	  [] = scripts($doc);
-		$forms 	 	  [] = forms($doc);
+		$header_links [] = _get_elements($doc,'meta');
+		$metas   	  [] = _get_elements($doc,'link');
+		$imgs 	 	  [] = _get_elements($doc,'img');
+		$scripts 	  [] = _get_elements($doc,'script');
+		$hrefs   	  [] = _get_elements($doc,'a');
+		$forms 	 	  [] = _get_elements($doc,'form');
 
 	}
 	$json = json_encode([$header_links,$metas,$hrefs,$imgs,$scripts,$forms]);
@@ -333,144 +333,63 @@ function check_base_domain($base_domain, $link_domain, $scheme){
 	return ($base_domain === $link_domain['host']); 
 }
 
-function header_links($doc){
-	$links = $doc->getElementsByTagName('link');
-	if(empty($links[0])){
+function _get_elements($doc,$tag){
+	$eles = $doc->getElementsByTagName($tag);
+	if(empty($eles[0])){
 		return false;
 	}
 	$elements = [
-		'Element' => $links[0]->nodeName
+		'Element' => $eles[0]->nodeName
 	];
-	foreach ($links as $link) {
-		foreach ($link->attributes as $attr) {
-			if(!empty($attr->nodeValue)){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
-			}
-		}				
-	}
-	return $elements;
-}
-
-function forms($doc){
-	$forms 	  = $doc->getElementsByTagName('form');
-	if(empty($forms[0])){
-		return false;
-	}
-	$elements = [
-		'Element' => $forms[0]->nodeName
-	];
-	foreach ($forms as $form) {
-		foreach ($form->attributes as $attr) {
-			if(!empty($attr->nodeValue)){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
-			}
-		}		
-		if ($form->hasChildNodes()) {
-			foreach($form->childNodes as $item){
-				$elements [] = [
-					'Child_node' => $item->nodeName,
-					'Value' 	 => $item->nodeValue
-				];
-				if($item->attributes !== null){
-					foreach($item->attributes as $attr){
-						$elements [] = [
-							'Child_attr' => $attr->nodeName,
-							'Value' 	 => $attr->nodeValue
-						];
-					}
+	if($tag === 'a'){
+		foreach ($eles as $a) {
+			foreach ($a->attributes as $attr) {
+				if(!empty($attr->nodeValue) && $attr->nodeName == "href" && $attr->nodeValue != "#"){
+					$elements [] = [
+						'Node' 	=> $attr->nodeName,
+						'Value' => $attr->nodeValue
+					];
 				}
-			}  
+			}							
 		}
-	}
-	return $elements;
-}
-
-function hrefs($doc){
-	$links 	  = $doc->getElementsByTagName('a');
-	if(empty($links[0])){
-		return false;
-	}
-	$elements = [
-		'Element' => $links[0]->nodeName
-	];
-	foreach ($links as $a) {
-		foreach ($a->attributes as $attr) {
-			if($attr->nodeName == "href" && !empty($attr->nodeValue) && $attr->nodeValue != "#"){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
+	} else if($tag === 'form'){
+		foreach ($eles as $form) {
+			foreach ($form->attributes as $attr) {
+				if(!empty($attr->nodeValue)){
+					$elements [] = [
+						'Node' 	=> $attr->nodeName,
+						'Value' => $attr->nodeValue
+					];
+				}
+			}		
+			if ($form->hasChildNodes()) {
+				foreach($form->childNodes as $item){
+					$elements [] = [
+						'Child_node' => $item->nodeName,
+						'Value' 	 => $item->nodeValue
+					];
+					if($item->attributes !== null){
+						foreach($item->attributes as $attr){
+							$elements [] = [
+								'Child_attr' => $attr->nodeName,
+								'Value' 	 => $attr->nodeValue
+							];
+						}
+					}
+				}  
 			}
-		}							
-	}
-	return $elements;
-}
-
-function metas($doc){
-	$metas 	  = $doc->getElementsByTagName('meta');
-	if(empty($metas[0])){
-		return false;
-	}
-	$elements = [
-		'Element' => $metas[0]->nodeName
-	];
-	foreach ($metas as $meta) {
-		foreach ($meta->attributes as $attr) {	
-			if(!empty($attr->nodeValue)){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
-			}
-		}							
-	}
-	return $elements;
-}
-
-function imgs($doc){
-	$imgs 	  = $doc->getElementsByTagName('img');
-	if(empty($imgs[0])){
-		return false;
-	}
-	$elements = [
-		'Element' => $imgs[0]->nodeName
-	];
-	foreach ($imgs as $img) {
-		foreach ($img->attributes as $attr) {	
-			if(!empty($attr->nodeValue)){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
-			}
-		}							
-	}
-	return $elements;
-}
-
-function scripts($doc){
-	$scripts  = $doc->getElementsByTagName('script');
-	if(empty($scripts[0])){
-		return false;
-	}
-	$elements = [
-		'Element' => $scripts[0]->nodeName
-	];
-	foreach ($scripts as $script) {
-		foreach ($script->attributes as $attr) {	
-			if(!empty($attr->nodeValue)){
-				$elements [] = [
-					'Node' 	=> $attr->nodeName,
-					'Value' => $attr->nodeValue
-				];
-			}
-		}							
+		}
+	} else {
+		foreach ($eles as $ele) {
+			foreach ($ele->attributes as $attr) {
+				if(!empty($attr->nodeValue)){
+					$elements [] = [
+						'Node' 	=> $attr->nodeName,
+						'Value' => $attr->nodeValue
+					];
+				}
+			}				
+		}
 	}
 	return $elements;
 }
@@ -510,13 +429,15 @@ function setUserAgent(){
         'Internet Explorer'
     ];
     $agentOS = [
+		'Windows Vista',
+		'Windows XP',
         'Windows 7',
         'Windows 10',
         'Redhat Linux',
         'Ubuntu',
         'Fedora'
     ];
-    return $agentBrowser[rand(0,3)].'/'.rand(1,8).'.'.rand(0,9).'('.$agentOS[rand(0,4)].' '.rand(1,7).'.'.rand(0,9).'; en-US;)';
+    return $agentBrowser[rand(0,3)].'/'.rand(1,8).'.'.rand(0,9).'('.$agentOS[rand(0,6)].' '.rand(1,7).'.'.rand(0,9).'; en-US;)';
 }
 
 function publicIp($proxopt){
